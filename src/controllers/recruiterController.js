@@ -79,4 +79,32 @@ async function scheduleInterview(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { getApplicants, getMyApplicants, updateStatus, scheduleInterview };
+// The logged-in recruiter's own company (or nulls if not set up yet).
+async function getMe(req, res, next) {
+  try {
+    const { rows } = await pool.query(
+      `SELECT r.company_id, r.verified, c.company_name, c.website
+       FROM recruiters r LEFT JOIN companies c ON c.company_id = r.company_id
+       WHERE r.user_id = $1`,
+      [req.user.user_id]
+    );
+    res.json(rows[0] ?? null);
+  } catch (err) { next(err); }
+}
+
+// Jobs this recruiter has posted, including unapproved ones (with approval state).
+async function getMyJobs(req, res, next) {
+  try {
+    const { rows } = await pool.query(
+      `SELECT j.job_id, j.title, j.salary, j.location, j.job_type, j.skills, j.approved, j.created_at,
+              c.company_name
+       FROM jobs j LEFT JOIN companies c ON c.company_id = j.company_id
+       WHERE j.posted_by = $1
+       ORDER BY j.created_at DESC`,
+      [req.user.user_id]
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+}
+
+module.exports = { getApplicants, getMyApplicants, updateStatus, scheduleInterview, getMe, getMyJobs };

@@ -6,6 +6,6 @@ const { standard, strict } = require('../middlewares/rateLimiter');
 router.get('/', standard, listJobs);
 router.get('/:id', standard, getJob);
 router.post('/', strict, authenticate, requireRole('recruiter'), createJob);
-router.delete('/:id', strict, authenticate, requireRole('admin', 'recruiter'), deleteJob);
+router.delete('/:id', strict, authenticate, requireRole('recruiter'), deleteJob);
 
 module.exports = router;

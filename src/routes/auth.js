@@ -1,7 +1,8 @@
 const router = require('express').Router();
 const { body, validationResult } = require('express-validator');
-const { login, register } = require('../controllers/authController');
-const { strict } = require('../middlewares/rateLimiter');
+const { login, register, me, logout } = require('../controllers/authController');
+const { authenticate } = require('../middlewares/auth');
+const { strict, standard } = require('../middlewares/rateLimiter');
 
 const validate = (req, res, next) => {
   const errors = validationResult(req);
@@ -23,5 +24,7 @@ const registerRules = [
 
 router.post('/login',    strict, loginRules,    validate, login);
 router.post('/register', strict, registerRules, validate, register);
+router.get('/me',        standard, authenticate, me);
+router.post('/logout',   standard, logout);
 
 module.exports = router;

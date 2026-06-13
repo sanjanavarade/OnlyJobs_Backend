@@ -5,12 +5,28 @@ const pool = require('../config/db');
 
 const BCRYPT_ROUNDS = 12;
 
+const COOKIE_NAME = 'token';
+const TOKEN_MAX_AGE_MS = 24 * 60 * 60 * 1000; // 24h — matches token expiry
+
+function cookieOptions() {
+  return {
+    httpOnly: true,                                   // not readable by JS → safe from XSS theft
+    sameSite: 'lax',                                  // not sent on cross-site POST/PUT/DELETE → CSRF mitigation
+    secure: process.env.NODE_ENV === 'production',    // HTTPS-only in prod
+    path: '/',
+  };
+}
+
 function signToken(user) {
   return jwt.sign(
     { sub: user.user_id, role: user.role, email: user.email },
     process.env.JWT_SECRET,
     { expiresIn: '24h' }
   );
+}
+
+function setAuthCookie(res, token) {
+  res.cookie(COOKIE_NAME, token, { ...cookieOptions(), maxAge: TOKEN_MAX_AGE_MS });
 }
 
 async function login(req, res, next) {
@@ -23,6 +39,7 @@ async function login(req, res, next) {
     if (!match) return res.status(401).json({ error: 'Invalid email or password.' });
 
     const token = signToken(user);
+    setAuthCookie(res, token);
     const { password_hash, ...safeUser } = user;
     res.json({ token, user: safeUser });
   } catch (err) {
@@ -47,10 +64,22 @@ async function register(req, res, next) {
     }
 
     const token = signToken(user);
+    setAuthCookie(res, token);
     res.status(201).json({ token, user });
   } catch (err) {
     next(err);
   }
 }
 
-module.exports = { login, register };
+// Returns the currently authenticated user (used by the frontend to restore
+// the session after a page reload). `req.user` is set by the authenticate middleware.
+function me(req, res) {
+  res.json({ user: req.user });
+}
+
+function logout(_req, res) {
+  res.clearCookie(COOKIE_NAME, cookieOptions());
+  res.json({ ok: true });
+}
+
+module.exports = { login, register, me, logout };

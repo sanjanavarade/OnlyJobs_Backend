@@ -1,13 +1,26 @@
 const jwt = require('jsonwebtoken');
 const pool = require('../config/db');
 
-async function authenticate(req, res, next) {
+// Accept the JWT from either the Authorization header (same-session requests)
+// or the httpOnly `token` cookie (set on login → survives page reload).
+function getToken(req) {
   const header = req.headers.authorization;
-  if (!header?.startsWith('Bearer ')) {
+  if (header?.startsWith('Bearer ')) return header.slice(7);
+
+  const rawCookie = req.headers.cookie;
+  if (rawCookie) {
+    const entry = rawCookie.split(';').map(c => c.trim()).find(c => c.startsWith('token='));
+    if (entry) return decodeURIComponent(entry.slice('token='.length));
+  }
+  return null;
+}
+
+async function authenticate(req, res, next) {
+  const token = getToken(req);
+  if (!token) {
     return res.status(401).json({ error: 'Authentication required.' });
   }
 
-  const token = header.slice(7);
   let payload;
   try {
     payload = jwt.verify(token, process.env.JWT_SECRET);

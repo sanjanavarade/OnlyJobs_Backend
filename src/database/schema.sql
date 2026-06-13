@@ -57,7 +57,7 @@ CREATE TABLE IF NOT EXISTS jobs (
   location    TEXT,
   job_type    job_type NOT NULL DEFAULT 'full_time',
   skills      TEXT[],
-  approved    BOOLEAN NOT NULL DEFAULT FALSE,
+  approved    BOOLEAN NOT NULL DEFAULT TRUE,
   created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
