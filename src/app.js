@@ -34,6 +34,7 @@ app.use('/api/jobs',        require('./routes/jobs'));
 app.use('/api/applications',require('./routes/applications'));
 app.use('/api/recruiter',   require('./routes/recruiter'));
 app.use('/api/companies',   require('./routes/companies'));
+app.use('/api/referrals',   require('./routes/referrals'));
 app.use('/api/blockchain',  require('./routes/blockchain'));
 
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));

@@ -38,7 +38,7 @@ async function getJob(req, res, next) {
 
 async function createJob(req, res, next) {
   try {
-    const { title, description, salary, location, job_type, skills } = req.body;
+    const { title, description, salary, location, job_type, skills, company_name, website } = req.body;
 
     if (typeof title !== 'string' || !title.trim() || title.length > 200) {
       return res.status(400).json({ error: 'A valid title is required.' });
@@ -54,12 +54,36 @@ async function createJob(req, res, next) {
     }
     const type = JOB_TYPES.includes(job_type) ? job_type : 'full_time';
 
-    // company_id is taken from the recruiter's OWN profile — never trusted from
-    // the request body, so a recruiter can't post jobs under another company.
-    const { rows } = await pool.query('SELECT company_id FROM recruiters WHERE user_id=$1', [req.user.user_id]);
-    const companyId = rows[0]?.company_id;
-    if (!companyId) {
-      return res.status(400).json({ error: 'Create your company profile before posting a job.' });
+    let companyId;
+    
+    // If company_name is provided, create/lookup company for this job
+    if (typeof company_name === 'string' && company_name.trim()) {
+      const trimmedName = company_name.trim();
+      const trimmedWebsite = (typeof website === 'string' ? website.trim() : null) || null;
+      
+      // Try to find existing company with this name
+      const { rows: existingCompany } = await pool.query(
+        'SELECT company_id FROM companies WHERE LOWER(company_name) = LOWER($1)',
+        [trimmedName]
+      );
+      
+      if (existingCompany.length > 0) {
+        companyId = existingCompany[0].company_id;
+      } else {
+        // Create new company
+        const { rows: newCompany } = await pool.query(
+          'INSERT INTO companies (company_name, website) VALUES ($1, $2) RETURNING company_id',
+          [trimmedName, trimmedWebsite]
+        );
+        companyId = newCompany[0].company_id;
+      }
+    } else {
+      // Fall back to recruiter's default company
+      const { rows } = await pool.query('SELECT company_id FROM recruiters WHERE user_id=$1', [req.user.user_id]);
+      companyId = rows[0]?.company_id;
+      if (!companyId) {
+        return res.status(400).json({ error: 'Provide a company name or create your company profile before posting a job.' });
+      }
     }
 
     const job = await Job.create({

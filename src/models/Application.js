@@ -9,10 +9,18 @@ const Application = {
 
   findBySeeker: (seekerId) =>
     pool.query(
-      `SELECT a.*, j.title, j.location, c.company_name
+      // `referred` = an anonymous (ring-signed) referral exists for this seeker's
+      // email on this job — i.e. a verified employee vouched for them.
+      `SELECT a.*, j.title, j.location, c.company_name,
+              EXISTS (
+                SELECT 1 FROM anonymous_referrals ar
+                WHERE ar.job_id = a.job_id AND LOWER(ar.candidate_email) = LOWER(su.email)
+              ) AS referred
        FROM applications a
        JOIN jobs j ON j.job_id = a.job_id
        JOIN companies c ON c.company_id = j.company_id
+       JOIN job_seekers sj ON sj.seeker_id = a.seeker_id
+       JOIN users su ON su.user_id = sj.user_id
        WHERE a.seeker_id = $1 ORDER BY a.applied_at DESC`,
       [seekerId]
     ).then(r => r.rows),

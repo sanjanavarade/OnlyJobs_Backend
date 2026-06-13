@@ -104,6 +104,30 @@ CREATE TABLE IF NOT EXISTS blockchain_records (
   UNIQUE (application_id)
 );
 
+-- Employee public keys for anonymous referrals (Ring Signatures)
+CREATE TABLE IF NOT EXISTS employee_keys (
+  key_id       UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id   UUID NOT NULL REFERENCES companies(company_id) ON DELETE CASCADE,
+  user_id      UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+  public_key   TEXT NOT NULL,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (company_id, user_id)
+);
+
+-- Anonymous referrals using ring signatures
+CREATE TABLE IF NOT EXISTS anonymous_referrals (
+  referral_id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  job_id              UUID NOT NULL REFERENCES jobs(job_id) ON DELETE CASCADE,
+  candidate_email     TEXT NOT NULL,
+  candidate_name      TEXT NOT NULL,
+  company_id          UUID NOT NULL REFERENCES companies(company_id) ON DELETE CASCADE,
+  ring_signature      TEXT NOT NULL,
+  blockchain_hash     TEXT NOT NULL,
+  blockchain_tx       TEXT,
+  verification_status VARCHAR(20) NOT NULL DEFAULT 'verified',
+  created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 -- Indexes for common lookups
 CREATE INDEX IF NOT EXISTS idx_jobs_company    ON jobs(company_id);
 CREATE INDEX IF NOT EXISTS idx_jobs_approved   ON jobs(approved);
@@ -112,3 +136,6 @@ CREATE INDEX IF NOT EXISTS idx_apps_seeker     ON applications(seeker_id);
 CREATE INDEX IF NOT EXISTS idx_apps_status     ON applications(status);
 CREATE INDEX IF NOT EXISTS idx_notif_user      ON notifications(user_id);
 CREATE INDEX IF NOT EXISTS idx_notif_unread    ON notifications(user_id) WHERE is_read = FALSE;
+CREATE INDEX IF NOT EXISTS idx_employee_keys_company ON employee_keys(company_id);
+CREATE INDEX IF NOT EXISTS idx_referrals_job   ON anonymous_referrals(job_id);
+CREATE INDEX IF NOT EXISTS idx_referrals_company ON anonymous_referrals(company_id);
