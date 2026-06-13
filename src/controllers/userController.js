@@ -77,7 +77,11 @@ function keywordSet(text) {
 }
 
 // Relevance = share of the JD's meaningful keywords that appear in the resume.
-// A matching role → high overlap → high score; an unrelated JD → low → <60.
+// Coverage is graded onto bands (real JDs have many keywords, so full overlap
+// is unrealistic — these anchors reward realistic matches):
+//   ~0%  overlap → 20  (not relevant)
+//   ~25% overlap → 60  (somewhat relevant)
+//   ≥50% overlap → 85  (strong match — ceiling)
 function relevanceScore(resumeText, jdText) {
   const jd = keywordSet(jdText);
   const resume = keywordSet(resumeText);
@@ -85,7 +89,15 @@ function relevanceScore(resumeText, jdText) {
   let hits = 0;
   for (const w of jd) if (resume.has(w)) hits++;
   const coverage = hits / jd.size;                       // 0..1
-  return Math.max(20, Math.min(98, Math.round(45 + coverage * 75)));
+  let score;
+  if (coverage <= 0.25) {
+    score = 20 + (coverage / 0.25) * 40;                 // 20 → 60
+  } else if (coverage <= 0.5) {
+    score = 60 + ((coverage - 0.25) / 0.25) * 25;        // 60 → 85
+  } else {
+    score = 85;                                          // ceiling
+  }
+  return Math.round(score);
 }
 
 async function scoreFromResumeUrl(resumeUrl) {
