@@ -67,36 +67,54 @@ const STOPWORDS = new Set([
   'join','environment','based','time','full','part','years','months','day','days',
 ]);
 
+// Crude stemmer: fold common morphological variants so "developer",
+// "developing", "development" all collapse to one root. The JD and the résumé
+// are stemmed identically, so variants align and real overlap is captured.
+// Tokens containing non-letters (node.js, c++, c#, .net) are left intact.
+const SUFFIXES = ['izations', 'ization', 'ations', 'ation', 'ities', 'ments', 'ment', 'ings', 'ing', 'ions', 'ion', 'ers', 'er', 'ed', 'ies', 'es'];
+function stem(w) {
+  if (!/^[a-z]+$/.test(w)) return w;
+  for (const suf of SUFFIXES) {
+    if (w.length - suf.length >= 3 && w.endsWith(suf)) {
+      return suf === 'ies' ? w.slice(0, -3) + 'y' : w.slice(0, -suf.length);
+    }
+  }
+  // Plural "s", but keep "ss" words (class, process) and a 3+ char base.
+  if (w.length >= 4 && w.endsWith('s') && !w.endsWith('ss')) return w.slice(0, -1);
+  return w;
+}
+
 function keywordSet(text) {
   const out = new Set();
   for (const tok of String(text).toLowerCase().replace(/[^a-z0-9+#.]+/g, ' ').split(' ')) {
     const w = tok.replace(/^\.+|\.+$/g, '');
-    if (w.length >= 3 && !STOPWORDS.has(w)) out.add(w);
+    if (w.length >= 3 && !STOPWORDS.has(w)) out.add(stem(w));
   }
   return out;
 }
 
-// Relevance = share of the JD's meaningful keywords that appear in the resume.
-// Coverage is graded onto bands (real JDs have many keywords, so full overlap
-// is unrealistic — these anchors reward realistic matches):
-//   ~0%  overlap → 20  (not relevant)
-//   ~25% overlap → 60  (somewhat relevant)
-//   ≥50% overlap → 85  (strong match — ceiling)
+// Relevance = the share of the JD's meaningful keywords (stemmed) that the
+// résumé also mentions. Real JDs carry many keywords, so even a strong résumé
+// rarely covers half of them — the curve is calibrated to that reality so the
+// score tracks how relevant the résumé actually is:
+//   ~0%  coverage → ~15  (irrelevant)
+//   ~10% coverage → ~50  (loosely related)
+//   ~25% coverage → ~75  (solid match)
+//   ~40% coverage → ~90  (strong match)
+//   ≥55% coverage → 97   (ceiling)
 function relevanceScore(resumeText, jdText) {
   const jd = keywordSet(jdText);
   const resume = keywordSet(resumeText);
   if (jd.size === 0 || resume.size === 0) return null;
   let hits = 0;
   for (const w of jd) if (resume.has(w)) hits++;
-  const coverage = hits / jd.size;                       // 0..1
+  const coverage = hits / jd.size;                                         // 0..1
   let score;
-  if (coverage <= 0.25) {
-    score = 20 + (coverage / 0.25) * 40;                 // 20 → 60
-  } else if (coverage <= 0.5) {
-    score = 60 + ((coverage - 0.25) / 0.25) * 25;        // 60 → 85
-  } else {
-    score = 85;                                          // ceiling
-  }
+  if (coverage <= 0.10)      score = 15 + (coverage / 0.10) * 35;          // 15 → 50
+  else if (coverage <= 0.25) score = 50 + ((coverage - 0.10) / 0.15) * 25; // 50 → 75
+  else if (coverage <= 0.40) score = 75 + ((coverage - 0.25) / 0.15) * 15; // 75 → 90
+  else if (coverage <= 0.55) score = 90 + ((coverage - 0.40) / 0.15) * 7;  // 90 → 97
+  else                       score = 97;                                   // ceiling
   return Math.round(score);
 }
 
